@@ -9,23 +9,16 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-# -----------------------------
-# CONFIG
-# -----------------------------
-LOGO_PATH = "logo.png"          # must be in repo root
-DOCS_PATH = "docs"              # upload PDFs/TXT here via GitHub
-INDEX_PATH = "data/faiss_index" # local cache on Streamlit Cloud
+LOGO_PATH = "logo.png"
+DOCS_PATH = "docs"
+INDEX_PATH = "data/faiss_index"
 
-# Must be first Streamlit call
 st.set_page_config(
     page_title="Humanio AI",
     page_icon=LOGO_PATH if os.path.exists(LOGO_PATH) else "🤝",
     layout="wide",
 )
 
-# -----------------------------
-# SAFETY CHECKS
-# -----------------------------
 if not os.path.exists(LOGO_PATH):
     st.error("logo.png not found in repo root. Upload it as 'logo.png'.")
     st.stop()
@@ -35,9 +28,6 @@ if not api_key:
     st.error("OPENAI_API_KEY not found in Streamlit Secrets.")
     st.stop()
 
-# -----------------------------
-# SESSION STATE
-# -----------------------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "draft" not in st.session_state:
@@ -47,9 +37,6 @@ def clear_chat():
     st.session_state.messages = []
     st.session_state.draft = ""
 
-# -----------------------------
-# RAG HELPERS
-# -----------------------------
 def ensure_dirs():
     os.makedirs(DOCS_PATH, exist_ok=True)
     os.makedirs("data", exist_ok=True)
@@ -87,7 +74,7 @@ def build_vectorstore_with_backoff(max_retries=5):
     embeddings = OpenAIEmbeddings(
         api_key=api_key,
         model="text-embedding-3-small",
-        chunk_size=64,  # smaller embedding batches reduce rate spikes
+        chunk_size=64,
     )
 
     delay = 2
@@ -111,7 +98,7 @@ def get_vectorstore():
     return build_vectorstore_with_backoff()
 
 # -----------------------------
-# HEADER UI (CENTERED)
+# Header UI
 # -----------------------------
 st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
@@ -139,29 +126,26 @@ st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 st.divider()
 
 # -----------------------------
-# RENDER CHAT HISTORY
+# Chat history
 # -----------------------------
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
 # -----------------------------
-# ASK + ANSWER
+# Ask + Answer
 # -----------------------------
 def run_question(user_q: str):
-    # User message
     st.session_state.messages.append({"role": "user", "content": user_q})
     with st.chat_message("user"):
         st.markdown(user_q)
 
-    # Build/load vectorstore
     try:
         with st.spinner("Thinking..."):
             vectorstore = get_vectorstore()
     except RateLimitError:
         msg = (
             "I hit an OpenAI rate limit while building the knowledge base.\n\n"
-            "Fix options:\n"
             "- Check your OpenAI account has billing/credits enabled\n"
             "- Try again in a couple of minutes\n"
             "- Reduce the number/size of documents in /docs\n"
@@ -177,7 +161,6 @@ def run_question(user_q: str):
         st.session_state.messages.append({"role": "assistant", "content": msg})
         return
 
-    # No docs
     if not vectorstore:
         msg = (
             "I don’t have any HR documents yet.\n\n"
@@ -188,9 +171,8 @@ def run_question(user_q: str):
         st.session_state.messages.append({"role": "assistant", "content": msg})
         return
 
-    # Retrieve + answer
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
-    retrieved = retriever.get_relevant_documents(user_q)
+    # ✅ stable retrieval across LangChain versions
+    retrieved = vectorstore.similarity_search(user_q, k=4)
     context = "\n\n---\n\n".join([d.page_content for d in retrieved])
 
     llm = ChatOpenAI(api_key=api_key, model="gpt-4o-mini", temperature=0.2)
@@ -226,7 +208,7 @@ ANSWER:
     st.session_state.messages.append({"role": "assistant", "content": answer})
 
 # -----------------------------
-# NARROW INPUT ROW (CUSTOM)
+# Narrow input row
 # -----------------------------
 pad_l, mid, pad_r = st.columns([2.5, 5, 2.5])
 
@@ -249,7 +231,6 @@ if send:
     if not q:
         st.warning("Type a question first.")
     else:
-        # Clear input before running (prevents 'echo' feeling)
         st.session_state.draft = ""
         run_question(q)
         st.rerun()
