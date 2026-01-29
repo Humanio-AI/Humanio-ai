@@ -23,14 +23,14 @@ st.set_page_config(
 )
 
 # -----------------------------
-# HIDE TOP RIGHT STREAMLIT ICONS
+# HIDE STREAMLIT HEADER / ICONS
 # -----------------------------
 st.markdown(
     """
     <style>
-      header[data-testid="stHeader"] {display: none;}
-      div[data-testid="stToolbar"] {display: none;}
-      .block-container { padding-top: 1.2rem; }
+      header[data-testid="stHeader"] {display:none;}
+      div[data-testid="stToolbar"] {display:none;}
+      .block-container { padding-top: 1.5rem; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -124,41 +124,30 @@ def get_vectorstore():
     return build_vectorstore_with_backoff()
 
 # -----------------------------
-# LAYOUT (CENTER COLUMN)
+# CENTERED LAYOUT
 # -----------------------------
-# Good “not too narrow” width
-pad_l, center, pad_r = st.columns([2, 6, 2])
+pad_l, center, pad_r = st.columns([2, 5, 2])
 
 with center:
-    st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
-    # ✅ Force logo centered (use HTML flex wrapper)
-    st.markdown(
-        f"""
-        <div style="display:flex; justify-content:center; align-items:center; margin-bottom: 6px;">
-            <img src="{LOGO_PATH}" style="width:140px; height:auto; border-radius:18px;" />
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
-    # If the HTML image doesn't render on Streamlit Cloud, the st.image below will.
-    # st.image is centered inside the center column.
-    st.image(LOGO_PATH, width=140)
+    # ✅ PERFECTLY CENTERED LOGO
+    st.image(LOGO_PATH, width=160)
 
-    # ✅ Center title
+    # ✅ CENTER TITLE
     st.markdown(
         """
         <div style="text-align:center;">
-            <h1 style="margin-bottom:0.2rem;">Flatpay People Team</h1>
+            <h1>Flatpay People Team</h1>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    # ✅ New chat button narrower (centered)
-    lbtn, mbtn, rbtn = st.columns([2.5, 3, 2.5])
-    with mbtn:
+    # ✅ CENTER BUTTON (not too wide)
+    bl, bm, br = st.columns([2, 3, 2])
+    with bm:
         if st.button("New chat", use_container_width=True):
             clear_chat()
             st.rerun()
@@ -173,7 +162,6 @@ with center:
             "</div>",
             unsafe_allow_html=True,
         )
-        st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
     # -----------------------------
     # CHAT HISTORY
@@ -187,6 +175,7 @@ with center:
     # -----------------------------
     def answer_question(user_q: str):
         st.session_state.messages.append({"role": "user", "content": user_q})
+
         with st.chat_message("user"):
             st.markdown(user_q)
 
@@ -235,10 +224,10 @@ ANSWER:
         st.session_state.messages.append({"role": "assistant", "content": answer})
 
     # -----------------------------
-    # INPUT FORM (make input row narrower + keep Send same width as input)
+    # INPUT BOX (NARROWER)
     # -----------------------------
-    # This makes the input card narrower than the full center column
-    il, im, ir = st.columns([1, 8, 1])
+    il, im, ir = st.columns([1, 6, 1])
+
     with im:
         with st.form(key=f"ask_form_{st.session_state.input_seed}", clear_on_submit=True):
             q = st.text_input(
