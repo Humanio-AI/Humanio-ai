@@ -130,7 +130,7 @@ for msg in st.session_state.messages:
 # -----------------------------
 # Chat input + response
 # -----------------------------
-user_q = st.chat_input("Input HR Query"\)
+user_q = st.chat_input("Input HR Query")
 
 if user_q:
     st.session_state.messages.append({"role": "user", "content": user_q})
