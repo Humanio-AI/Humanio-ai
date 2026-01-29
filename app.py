@@ -10,13 +10,13 @@ from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 # -----------------------------
-# Config
+# CONFIG
 # -----------------------------
-LOGO_PATH = "logo.png"
-DOCS_PATH = "docs"
-INDEX_PATH = "data/faiss_index"
+LOGO_PATH = "logo.png"          # must be in repo root
+DOCS_PATH = "docs"              # upload PDFs/TXT here via GitHub
+INDEX_PATH = "data/faiss_index" # local cache on Streamlit Cloud
 
-# Must be first Streamlit call:
+# Must be first Streamlit call
 st.set_page_config(
     page_title="Humanio AI",
     page_icon=LOGO_PATH if os.path.exists(LOGO_PATH) else "🤝",
@@ -24,7 +24,7 @@ st.set_page_config(
 )
 
 # -----------------------------
-# Basic checks (never blank)
+# SAFETY CHECKS
 # -----------------------------
 if not os.path.exists(LOGO_PATH):
     st.error("logo.png not found in repo root. Upload it as 'logo.png'.")
@@ -36,7 +36,7 @@ if not api_key:
     st.stop()
 
 # -----------------------------
-# Session state
+# SESSION STATE
 # -----------------------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -48,7 +48,7 @@ def clear_chat():
     st.session_state.draft = ""
 
 # -----------------------------
-# RAG helpers
+# RAG HELPERS
 # -----------------------------
 def ensure_dirs():
     os.makedirs(DOCS_PATH, exist_ok=True)
@@ -87,7 +87,7 @@ def build_vectorstore_with_backoff(max_retries=5):
     embeddings = OpenAIEmbeddings(
         api_key=api_key,
         model="text-embedding-3-small",
-        chunk_size=64,  # smaller batches reduces rate spikes
+        chunk_size=64,  # smaller embedding batches reduce rate spikes
     )
 
     delay = 2
@@ -107,13 +107,11 @@ def get_vectorstore():
     vs = load_vectorstore_if_exists()
     if vs:
         return vs
-
     delete_index()
     return build_vectorstore_with_backoff()
 
 # -----------------------------
-# -----------------------------
-# Header UI
+# HEADER UI (CENTERED)
 # -----------------------------
 st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
@@ -131,7 +129,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# perfectly centered smaller button
 l2, c2, r2 = st.columns([5, 1.5, 5])
 with c2:
     if st.button("🆕 New chat", use_container_width=True):
@@ -141,61 +138,67 @@ with c2:
 st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 st.divider()
 
-
 # -----------------------------
-# Render chat messages
+# RENDER CHAT HISTORY
 # -----------------------------
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
 # -----------------------------
-# Narrow input (custom, not st.chat_input)
+# ASK + ANSWER
 # -----------------------------
-pad_l, mid, pad_r = st.columns([1, 6, 1])
-
-with mid:
-    in_l, in_r = st.columns([10, 2])
-    with in_l:
-        st.session_state.draft = st.text_input(
-            label="Ask an HR question",
-            value=st.session_state.draft,
-            placeholder="Ask an HR question…",
-            label_visibility="collapsed",
-        )
-    with in_r:
-        send = st.button("Send", use_container_width=True)
-
 def run_question(user_q: str):
+    # User message
     st.session_state.messages.append({"role": "user", "content": user_q})
-
     with st.chat_message("user"):
         st.markdown(user_q)
 
+    # Build/load vectorstore
     try:
         with st.spinner("Thinking..."):
             vectorstore = get_vectorstore()
+    except RateLimitError:
+        msg = (
+            "I hit an OpenAI rate limit while building the knowledge base.\n\n"
+            "Fix options:\n"
+            "- Check your OpenAI account has billing/credits enabled\n"
+            "- Try again in a couple of minutes\n"
+            "- Reduce the number/size of documents in /docs\n"
+        )
+        with st.chat_message("assistant"):
+            st.markdown(msg)
+        st.session_state.messages.append({"role": "assistant", "content": msg})
+        return
+    except Exception as e:
+        msg = f"App error while building knowledge base: {type(e).__name__}: {e}"
+        with st.chat_message("assistant"):
+            st.markdown(msg)
+        st.session_state.messages.append({"role": "assistant", "content": msg})
+        return
 
-        if not vectorstore:
-            answer = (
-                "I don’t have any HR documents yet.\n\n"
-                "Upload PDFs/TXT into the **/docs** folder in GitHub, then refresh."
-            )
-            with st.chat_message("assistant"):
-                st.markdown(answer)
-            st.session_state.messages.append({"role": "assistant", "content": answer})
-            return
+    # No docs
+    if not vectorstore:
+        msg = (
+            "I don’t have any HR documents yet.\n\n"
+            "Upload PDFs/TXT into the **/docs** folder in GitHub, then refresh this page."
+        )
+        with st.chat_message("assistant"):
+            st.markdown(msg)
+        st.session_state.messages.append({"role": "assistant", "content": msg})
+        return
 
-        retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
-        retrieved = retriever.get_relevant_documents(user_q)
-        context = "\n\n---\n\n".join([d.page_content for d in retrieved])
+    # Retrieve + answer
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
+    retrieved = retriever.get_relevant_documents(user_q)
+    context = "\n\n---\n\n".join([d.page_content for d in retrieved])
 
-        llm = ChatOpenAI(api_key=api_key, model="gpt-4o-mini", temperature=0.2)
+    llm = ChatOpenAI(api_key=api_key, model="gpt-4o-mini", temperature=0.2)
 
-        prompt = f"""
+    prompt = f"""
 You are Humanio AI, an internal HR assistant.
 Answer ONLY using the provided context.
-If the context does not contain the answer, say you don't know.
+If the context does not contain the answer, say you don't know and suggest who to contact.
 
 CONTEXT:
 {context}
@@ -206,30 +209,47 @@ QUESTION:
 ANSWER:
 """.strip()
 
+    try:
         resp = llm.invoke(prompt)
-        answer = resp.content
-
-        with st.chat_message("assistant"):
-            st.markdown(answer)
-
-        st.session_state.messages.append({"role": "assistant", "content": answer})
-
+        answer = (resp.content or "").strip()
     except RateLimitError:
-        msg = (
-            "I hit an OpenAI rate limit while building the knowledge base.\n\n"
-            "- Check your OpenAI account has billing/credits enabled\n"
-            "- Try again in a couple of minutes\n"
-            "- Reduce the number/size of documents in /docs\n"
-        )
-        with st.chat_message("assistant"):
-            st.markdown(msg)
-        st.session_state.messages.append({"role": "assistant", "content": msg})
+        answer = "I hit an OpenAI rate limit while generating the answer. Please try again in a minute."
     except Exception as e:
-        st.error(f"App error: {type(e).__name__}: {e}")
+        answer = f"App error while generating answer: {type(e).__name__}: {e}"
 
-# Send handling
-if send and st.session_state.draft.strip():
-    q = st.session_state.draft.strip()
-    st.session_state.draft = ""  # clear input
-    run_question(q)
-    st.rerun()
+    if not answer:
+        answer = "I couldn’t generate a response. Please try again."
+
+    with st.chat_message("assistant"):
+        st.markdown(answer)
+
+    st.session_state.messages.append({"role": "assistant", "content": answer})
+
+# -----------------------------
+# NARROW INPUT ROW (CUSTOM)
+# -----------------------------
+pad_l, mid, pad_r = st.columns([2.5, 5, 2.5])
+
+with mid:
+    input_l, input_r = st.columns([8, 2])
+
+    with input_l:
+        st.session_state.draft = st.text_input(
+            label="Ask an HR question",
+            value=st.session_state.draft,
+            placeholder="Ask an HR question…",
+            label_visibility="collapsed",
+        )
+
+    with input_r:
+        send = st.button("Send", use_container_width=True)
+
+if send:
+    q = (st.session_state.draft or "").strip()
+    if not q:
+        st.warning("Type a question first.")
+    else:
+        # Clear input before running (prevents 'echo' feeling)
+        st.session_state.draft = ""
+        run_question(q)
+        st.rerun()
