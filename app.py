@@ -105,7 +105,7 @@ st.markdown(
     """
     <div style="text-align:center; margin-top: 6px;">
         <h1 style="margin-bottom: 0.2rem;">Humanio AI</h1>
-        <div style="opacity:0.78; font-size: 1.05rem;">HR Team</div>
+        <div style="opacity:0.78; font-size: 1.05rem;"></div>
     </div>
     """,
     unsafe_allow_html=True,
