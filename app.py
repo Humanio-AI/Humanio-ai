@@ -1,5 +1,7 @@
 import os
+import shutil
 import streamlit as st
+from PIL import Image
 
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import FAISS
@@ -7,23 +9,58 @@ from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
-st.set_page_config(page_title="Humanio AI", page_icon="🤝", layout="wide")
-st.title("Humanio AI — HR Assistant")
-
+# -----------------------------
+# App config + branding
+# -----------------------------
+LOGO_PATH = "logo.png"  # <- put logo.png in your repo root
 DOCS_PATH = "docs"
 INDEX_PATH = "data/faiss_index"
 
+page_icon = "🤝"
+if os.path.exists(LOGO_PATH):
+    try:
+        page_icon = Image.open(LOGO_PATH)
+    except Exception:
+        pass
+
+st.set_page_config(page_title="Humanio AI", page_icon=page_icon, layout="wide")
+
+
+def init_state():
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    if "kb_status" not in st.session_state:
+        st.session_state.kb_status = ""
+
+
+init_state()
+
+
+# -----------------------------
+# Secrets
+# -----------------------------
 api_key = st.secrets.get("OPENAI_API_KEY")
 if not api_key:
     st.error("OPENAI_API_KEY not found in Streamlit Secrets.")
     st.stop()
 
 
-# -------- Load documents --------
+# -----------------------------
+# Helpers
+# -----------------------------
+def ensure_dirs():
+    os.makedirs(DOCS_PATH, exist_ok=True)
+    os.makedirs("data", exist_ok=True)
+
+
+def delete_index():
+    if os.path.exists(INDEX_PATH):
+        shutil.rmtree(INDEX_PATH, ignore_errors=True)
+
+
 def load_documents():
+    ensure_dirs()
     docs = []
-    if not os.path.exists(DOCS_PATH):
-        os.makedirs(DOCS_PATH, exist_ok=True)
 
     for root, _, files in os.walk(DOCS_PATH):
         for f in files:
@@ -32,15 +69,12 @@ def load_documents():
                 docs.extend(PyPDFLoader(fp).load())
             elif f.lower().endswith(".txt"):
                 docs.extend(TextLoader(fp, encoding="utf-8").load())
+
     return docs
 
 
-# -------- Vector store --------
-def get_vectorstore():
+def build_vectorstore():
     embeddings = OpenAIEmbeddings(api_key=api_key)
-
-    if os.path.exists(INDEX_PATH):
-        return FAISS.load_local(INDEX_PATH, embeddings, allow_dangerous_deserialization=True)
 
     docs = load_documents()
     if not docs:
@@ -55,35 +89,101 @@ def get_vectorstore():
     return vs
 
 
-def delete_index():
+def load_vectorstore_if_exists():
+    embeddings = OpenAIEmbeddings(api_key=api_key)
     if os.path.exists(INDEX_PATH):
-        for root, dirs, files in os.walk(INDEX_PATH, topdown=False):
-            for name in files:
-                os.remove(os.path.join(root, name))
-            for name in dirs:
-                os.rmdir(os.path.join(root, name))
-        os.rmdir(INDEX_PATH)
+        return FAISS.load_local(INDEX_PATH, embeddings, allow_dangerous_deserialization=True)
+    return None
 
 
-# -------- Sidebar --------
-st.sidebar.header("Knowledge Base")
-st.sidebar.write("Upload HR PDFs/TXT into the `/docs` folder in GitHub.")
+def save_uploaded_files(uploaded_files):
+    ensure_dirs()
+    saved = []
+    for uf in uploaded_files:
+        name = uf.name
+        lower = name.lower()
+        if not (lower.endswith(".pdf") or lower.endswith(".txt")):
+            continue
+        out_path = os.path.join(DOCS_PATH, name)
+        with open(out_path, "wb") as f:
+            f.write(uf.getbuffer())
+        saved.append(name)
+    return saved
 
-if st.sidebar.button("Rebuild index"):
-    with st.spinner("Rebuilding knowledge base..."):
-        delete_index()
-        vectorstore = get_vectorstore()
 
-    if vectorstore:
-        st.sidebar.success("Index rebuilt ✅")
-    else:
-        st.sidebar.warning("No documents found in /docs.")
-
-
-# -------- Chat --------
-if "messages" not in st.session_state:
+def new_chat():
     st.session_state.messages = []
 
+
+# -----------------------------
+# Header layout (no sidebar)
+# -----------------------------
+top_left, top_mid, top_right = st.columns([1, 6, 1])
+
+with top_left:
+    if os.path.exists(LOGO_PATH):
+        st.image(LOGO_PATH, width=54)
+
+with top_mid:
+    st.markdown(
+        """
+        <div style="text-align:center; margin-top: 6px;">
+            <h1 style="margin-bottom: 0.2rem;">Humanio AI</h1>
+            <div style="opacity:0.75; font-size: 1.05rem;">Internal HR Assistant</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with top_right:
+    if st.button("🆕 New chat", use_container_width=True):
+        new_chat()
+        st.rerun()
+
+st.divider()
+
+
+# -----------------------------
+# Knowledge base controls (main page)
+# -----------------------------
+with st.expander("📚 Knowledge base (upload HR docs + rebuild)", expanded=False):
+    st.write("Upload HR documents (PDF/TXT). Then click **Rebuild knowledge base**.")
+    uploaded = st.file_uploader(
+        "Upload files",
+        type=["pdf", "txt"],
+        accept_multiple_files=True,
+        label_visibility="collapsed",
+    )
+
+    col_a, col_b = st.columns([1, 1])
+
+    with col_a:
+        if st.button("⬆️ Save uploaded files", use_container_width=True):
+            if not uploaded:
+                st.warning("No files selected.")
+            else:
+                saved = save_uploaded_files(uploaded)
+                if saved:
+                    st.success(f"Saved: {', '.join(saved)}")
+                else:
+                    st.warning("No valid PDF/TXT files were saved.")
+
+    with col_b:
+        if st.button("🔄 Rebuild knowledge base", use_container_width=True):
+            with st.spinner("Building knowledge base..."):
+                delete_index()
+                vs = build_vectorstore()
+            if vs:
+                st.success("Knowledge base rebuilt ✅")
+            else:
+                st.warning("No documents found in /docs. Upload PDFs/TXT first.")
+
+    st.caption("Tip: If you replace docs, rebuild the knowledge base so answers update.")
+
+
+# -----------------------------
+# Chat UI
+# -----------------------------
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
@@ -92,14 +192,15 @@ user_q = st.chat_input("Ask an HR question…")
 
 if user_q:
     st.session_state.messages.append({"role": "user", "content": user_q})
-
     with st.chat_message("user"):
         st.markdown(user_q)
 
-    vectorstore = get_vectorstore()
-
+    vectorstore = load_vectorstore_if_exists()
     if not vectorstore:
-        answer = "No HR documents found. Upload files to `/docs` and click 'Rebuild index'."
+        answer = (
+            "I don’t have a knowledge base yet.\n\n"
+            "Open **Knowledge base**, upload HR documents (PDF/TXT), then click **Rebuild knowledge base**."
+        )
         with st.chat_message("assistant"):
             st.markdown(answer)
         st.session_state.messages.append({"role": "assistant", "content": answer})
@@ -107,15 +208,13 @@ if user_q:
 
     retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
     retrieved = retriever.get_relevant_documents(user_q)
-
     context = "\n\n---\n\n".join([d.page_content for d in retrieved])
 
     llm = ChatOpenAI(api_key=api_key, model="gpt-4o-mini", temperature=0.2)
 
     prompt = f"""
-You are Humanio AI, an internal HR assistant.
-Answer ONLY using the provided context.
-If unsure, say you don't know and suggest checking HR.
+You are Humanio AI, an internal HR assistant for employees.
+Answer ONLY using the provided context. If the context does not contain the answer, say you don't know and suggest who to contact or which policy to check.
 
 CONTEXT:
 {context}
@@ -138,4 +237,3 @@ ANSWER:
                 st.write(f"{i}. {src}")
 
     st.session_state.messages.append({"role": "assistant", "content": answer})
-
