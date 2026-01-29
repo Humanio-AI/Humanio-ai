@@ -28,25 +28,19 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-      /* Hide Streamlit header + top-right toolbar (deploy/share/etc.) */
       header[data-testid="stHeader"] {display:none;}
       div[data-testid="stToolbar"] {display:none;}
-
-      /* Make the app feel like a centered chat app */
       .block-container {max-width: 980px; padding-top: 1.4rem;}
 
-      /* Chat message spacing + paragraph spacing */
       div[data-testid="stChatMessage"] {margin-bottom: 0.85rem;}
       div[data-testid="stChatMessage"] p {margin: 0.25rem 0;}
 
-      /* Round inputs/buttons */
       .stTextInput > div > div,
       .stButton > button,
       .stFormSubmitButton > button {
         border-radius: 12px !important;
       }
 
-      /* Slightly tighten default element spacing */
       div[data-testid="stVerticalBlock"] {gap: 0.75rem;}
     </style>
     """,
@@ -156,7 +150,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# New chat centered, not too wide
 bl, bm, br = st.columns([2.5, 3, 2.5])
 with bm:
     if st.button("New chat", use_container_width=True):
@@ -166,28 +159,14 @@ with bm:
 st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 st.divider()
 
-if len(st.session_state.messages) == 0:
-    st.markdown(
-        "<div style='text-align:center; opacity:0.75;'>"
-        "I am here to support with your HR queries"
-        "</div>",
-        unsafe_allow_html=True,
-    )
-    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-
-# -----------------------------
-# CHAT HISTORY
-# -----------------------------
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
-
 # -----------------------------
 # ANSWER LOGIC
 # -----------------------------
 def answer_question(user_q: str):
     st.session_state.messages.append({"role": "user", "content": user_q})
-    with st.chat_message("user"):
+
+    # user avatar
+    with st.chat_message("user", avatar="👤"):
         st.markdown(user_q)
 
     try:
@@ -195,14 +174,14 @@ def answer_question(user_q: str):
             vectorstore = get_vectorstore()
     except RateLimitError:
         msg = "OpenAI rate limit hit. Try again shortly."
-        with st.chat_message("assistant"):
+        with st.chat_message("assistant", avatar=LOGO_PATH):
             st.markdown(msg)
         st.session_state.messages.append({"role": "assistant", "content": msg})
         return
 
     if not vectorstore:
         msg = "No HR docs found. Upload PDFs/TXT to /docs folder."
-        with st.chat_message("assistant"):
+        with st.chat_message("assistant", avatar=LOGO_PATH):
             st.markdown(msg)
         st.session_state.messages.append({"role": "assistant", "content": msg})
         return
@@ -227,17 +206,55 @@ ANSWER:
 """.strip()
 
     resp = llm.invoke(prompt)
-    answer = (resp.content or "").strip()
+    answer = (resp.content or "").strip() or "I couldn’t generate a response. Please try again."
 
-    with st.chat_message("assistant"):
+    with st.chat_message("assistant", avatar=LOGO_PATH):
         st.markdown(answer)
 
     st.session_state.messages.append({"role": "assistant", "content": answer})
 
 # -----------------------------
+# EMPTY STATE + SUGGESTED QUESTIONS (1 + 3)
+# -----------------------------
+if len(st.session_state.messages) == 0:
+    st.markdown(
+        "<div style='text-align:center; opacity:0.75; margin-bottom: 10px;'>"
+        "I am here to support with your HR queries"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    suggestions = [
+        "How do I book annual leave?",
+        "What is the sickness policy?",
+        "Where can I find my benefits information?",
+        "How do I update my personal details?",
+        "What is the probation process?",
+        "How do expenses work?",
+    ]
+
+    # 3 columns of suggestion buttons
+    c1, c2, c3 = st.columns(3)
+    for i, s in enumerate(suggestions):
+        col = [c1, c2, c3][i % 3]
+        with col:
+            if st.button(s, use_container_width=True):
+                answer_question(s)
+                st.rerun()
+
+    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+
+# -----------------------------
+# CHAT HISTORY (WITH AVATARS)
+# -----------------------------
+for msg in st.session_state.messages:
+    avatar = "👤" if msg["role"] == "user" else LOGO_PATH
+    with st.chat_message(msg["role"], avatar=avatar):
+        st.markdown(msg["content"])
+
+# -----------------------------
 # INPUT FORM (AUTO CLEARS)
 # -----------------------------
-# Slightly narrower input area than page width
 il, im, ir = st.columns([1, 6, 1])
 with im:
     with st.form(key=f"ask_form_{st.session_state.input_seed}", clear_on_submit=True):
