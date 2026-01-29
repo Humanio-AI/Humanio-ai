@@ -123,8 +123,8 @@ with center:
     st.markdown(
         """
         <div style="text-align:center;">
-            <h1 style="margin-bottom:0.2rem;">Humanio AI</h1>
-            <div style="opacity:0.8;">Internal HR Assistant</div>
+            <h1 style="margin-bottom:0.2rem;">Flatpay People Team</h1>
+            <div style="opacity:0.8;"></div>
         </div>
         """,
         unsafe_allow_html=True,
