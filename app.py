@@ -99,13 +99,13 @@ st.markdown("<div style='height:18px;'></div>", unsafe_allow_html=True)
 
 c1, c2, c3 = st.columns([3, 2, 3])
 with c2:
-    st.image(logo_img, width=96)
+    st.image(logo_img, width=300)
 
 st.markdown(
     """
     <div style="text-align:center; margin-top: 6px;">
         <h1 style="margin-bottom: 0.2rem;">Humanio AI</h1>
-        <div style="opacity:0.78; font-size: 1.05rem;">Internal HR Assistant</div>
+        <div style="opacity:0.78; font-size: 1.05rem;">HR Team</div>
     </div>
     """,
     unsafe_allow_html=True,
@@ -113,7 +113,7 @@ st.markdown(
 
 c4, c5, c6 = st.columns([3, 2, 3])
 with c5:
-    if st.button("🆕 New chat", use_container_width=True):
+    if st.button("New chat", use_container_width=True):
         clear_chat()
         st.rerun()
 
@@ -130,7 +130,7 @@ for msg in st.session_state.messages:
 # -----------------------------
 # Chat input + response
 # -----------------------------
-user_q = st.chat_input("Ask an HR question…")
+user_q = st.chat_input("Input HR Query"\)
 
 if user_q:
     st.session_state.messages.append({"role": "user", "content": user_q})
