@@ -17,7 +17,7 @@ DOCS_PATH = "docs"
 INDEX_PATH = "data/faiss_index"
 
 st.set_page_config(
-    page_title="Humanio AI",
+    page_title="Flatpay",
     page_icon=LOGO_PATH if os.path.exists(LOGO_PATH) else "🤝",
     layout="wide",
 )
@@ -118,7 +118,7 @@ with center:
 
     st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
-    st.image(LOGO_PATH, width=90)
+    st.image(LOGO_PATH, width=250)
 
     st.markdown(
         """
@@ -130,7 +130,7 @@ with center:
         unsafe_allow_html=True,
     )
 
-    if st.button("🆕 New chat", use_container_width=True):
+    if st.button("New chat", use_container_width=True):
         clear_chat()
         st.rerun()
 
@@ -140,7 +140,7 @@ with center:
     if len(st.session_state.messages) == 0:
         st.markdown(
             "<div style='text-align:center; opacity:0.75;'>"
-            "Hi 👋 I’m Humanio. Ask me anything about HR policies or processes."
+            "I am here to support with your HR queries"
             "</div>",
             unsafe_allow_html=True,
         )
@@ -162,7 +162,7 @@ with center:
             st.markdown(user_q)
 
         try:
-            with st.spinner("Thinking..."):
+            with st.spinner("Analyzing..."):
                 vectorstore = get_vectorstore()
         except RateLimitError:
             msg = "OpenAI rate limit hit. Try again shortly."
