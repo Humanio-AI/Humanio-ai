@@ -112,11 +112,12 @@ def get_vectorstore():
     return build_vectorstore_with_backoff()
 
 # -----------------------------
-# UI (Centered logo/title/button)
+# -----------------------------
+# Header UI
 # -----------------------------
 st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
-l1, c1, r1 = st.columns([4, 1, 4])
+l1, c1, r1 = st.columns([5, 1, 5])
 with c1:
     st.image(LOGO_PATH, width=90)
 
@@ -130,14 +131,16 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-l2, c2, r2 = st.columns([4, 2, 4])
+# perfectly centered smaller button
+l2, c2, r2 = st.columns([5, 1.5, 5])
 with c2:
-    if st.button("🆕 New chat"):
+    if st.button("🆕 New chat", use_container_width=True):
         clear_chat()
         st.rerun()
 
 st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 st.divider()
+
 
 # -----------------------------
 # Render chat messages
