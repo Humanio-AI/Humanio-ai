@@ -124,26 +124,29 @@ def get_vectorstore():
     return build_vectorstore_with_backoff()
 
 # -----------------------------
-# LAYOUT (NOT TOO NARROW)
+# LAYOUT (CENTER COLUMN)
 # -----------------------------
-# This gives a nice "center column" but not the tiny pill look
+# Good “not too narrow” width
 pad_l, center, pad_r = st.columns([2, 6, 2])
 
 with center:
     st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
-    # Center logo reliably (no extra nested columns so it won't drift)
+    # ✅ Force logo centered (use HTML flex wrapper)
     st.markdown(
         f"""
         <div style="display:flex; justify-content:center; align-items:center; margin-bottom: 6px;">
-            <img src="app/static/logo" style="display:none;" />
+            <img src="{LOGO_PATH}" style="width:140px; height:auto; border-radius:18px;" />
         </div>
         """,
         unsafe_allow_html=True,
     )
-    # Streamlit image is already centered in its container column
+
+    # If the HTML image doesn't render on Streamlit Cloud, the st.image below will.
+    # st.image is centered inside the center column.
     st.image(LOGO_PATH, width=140)
 
+    # ✅ Center title
     st.markdown(
         """
         <div style="text-align:center;">
@@ -153,8 +156,8 @@ with center:
         unsafe_allow_html=True,
     )
 
-    # "New chat" button: narrower but not tiny
-    lbtn, mbtn, rbtn = st.columns([2, 3, 2])
+    # ✅ New chat button narrower (centered)
+    lbtn, mbtn, rbtn = st.columns([2.5, 3, 2.5])
     with mbtn:
         if st.button("New chat", use_container_width=True):
             clear_chat()
@@ -232,18 +235,21 @@ ANSWER:
         st.session_state.messages.append({"role": "assistant", "content": answer})
 
     # -----------------------------
-    # INPUT FORM (auto clears)
+    # INPUT FORM (make input row narrower + keep Send same width as input)
     # -----------------------------
-    with st.form(key=f"ask_form_{st.session_state.input_seed}", clear_on_submit=True):
-        q = st.text_input(
-            label="Ask an HR question",
-            placeholder="Ask an HR question…",
-            label_visibility="collapsed",
-        )
-        sent = st.form_submit_button("Send", use_container_width=True)
+    # This makes the input card narrower than the full center column
+    il, im, ir = st.columns([1, 8, 1])
+    with im:
+        with st.form(key=f"ask_form_{st.session_state.input_seed}", clear_on_submit=True):
+            q = st.text_input(
+                label="Ask an HR question",
+                placeholder="Ask an HR question…",
+                label_visibility="collapsed",
+            )
+            sent = st.form_submit_button("Send", use_container_width=True)
 
-    if sent:
-        q = (q or "").strip()
-        if q:
-            answer_question(q)
-            st.rerun()
+        if sent:
+            q = (q or "").strip()
+            if q:
+                answer_question(q)
+                st.rerun()
