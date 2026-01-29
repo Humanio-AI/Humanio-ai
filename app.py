@@ -8,33 +8,21 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-
 # -----------------------------
-# App config + branding
+# Config (logo, docs, index)
 # -----------------------------
-LOGO_PATH = "logo.png"  # <- put logo.png in your repo root
-DOCS_PATH = "docs"
-INDEX_PATH = "data/faiss_index"
+LOGO_PATH = "logo.png"           # put logo.png in repo root
+DOCS_PATH = "docs"               # upload docs here via GitHub
+INDEX_PATH = "data/faiss_index"  # cache folder on Streamlit
 
-page_icon = "🤝"
-if os.path.exists(LOGO_PATH):
-    try:
-        page_icon = Image.open(LOGO_PATH)
-    except Exception:
-        pass
+# Page icon MUST be logo file
+if not os.path.exists(LOGO_PATH):
+    st.set_page_config(page_title="Humanio AI", page_icon="🤝", layout="wide")
+    st.error("logo.png not found in repo root. Upload your logo as 'logo.png'.")
+    st.stop()
 
-st.set_page_config(page_title="Humanio AI", page_icon=page_icon, layout="wide")
-
-
-def init_state():
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-    if "kb_status" not in st.session_state:
-        st.session_state.kb_status = ""
-
-
-init_state()
-
+logo_img = Image.open(LOGO_PATH)
+st.set_page_config(page_title="Humanio AI", page_icon=logo_img, layout="wide")
 
 # -----------------------------
 # Secrets
@@ -44,24 +32,29 @@ if not api_key:
     st.error("OPENAI_API_KEY not found in Streamlit Secrets.")
     st.stop()
 
+# -----------------------------
+# Session state
+# -----------------------------
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+def clear_chat():
+    st.session_state.messages = []
 
 # -----------------------------
-# Helpers
+# RAG helpers
 # -----------------------------
 def ensure_dirs():
     os.makedirs(DOCS_PATH, exist_ok=True)
     os.makedirs("data", exist_ok=True)
 
-
 def delete_index():
     if os.path.exists(INDEX_PATH):
         shutil.rmtree(INDEX_PATH, ignore_errors=True)
 
-
 def load_documents():
     ensure_dirs()
     docs = []
-
     for root, _, files in os.walk(DOCS_PATH):
         for f in files:
             fp = os.path.join(root, f)
@@ -69,13 +62,10 @@ def load_documents():
                 docs.extend(PyPDFLoader(fp).load())
             elif f.lower().endswith(".txt"):
                 docs.extend(TextLoader(fp, encoding="utf-8").load())
-
     return docs
-
 
 def build_vectorstore():
     embeddings = OpenAIEmbeddings(api_key=api_key)
-
     docs = load_documents()
     if not docs:
         return None
@@ -88,106 +78,58 @@ def build_vectorstore():
     vs.save_local(INDEX_PATH)
     return vs
 
-
 def load_vectorstore_if_exists():
     embeddings = OpenAIEmbeddings(api_key=api_key)
     if os.path.exists(INDEX_PATH):
         return FAISS.load_local(INDEX_PATH, embeddings, allow_dangerous_deserialization=True)
     return None
 
-
-def save_uploaded_files(uploaded_files):
-    ensure_dirs()
-    saved = []
-    for uf in uploaded_files:
-        name = uf.name
-        lower = name.lower()
-        if not (lower.endswith(".pdf") or lower.endswith(".txt")):
-            continue
-        out_path = os.path.join(DOCS_PATH, name)
-        with open(out_path, "wb") as f:
-            f.write(uf.getbuffer())
-        saved.append(name)
-    return saved
-
-
-def new_chat():
-    st.session_state.messages = []
-
+def get_vectorstore():
+    vs = load_vectorstore_if_exists()
+    if vs:
+        return vs
+    # First run: build automatically
+    delete_index()
+    return build_vectorstore()
 
 # -----------------------------
-# Header layout (no sidebar)
+# UI (Centered logo + title + centered New chat button)
 # -----------------------------
-top_left, top_mid, top_right = st.columns([1, 6, 1])
+st.markdown("<div style='height:18px;'></div>", unsafe_allow_html=True)
 
-with top_left:
-    if os.path.exists(LOGO_PATH):
-        st.image(LOGO_PATH, width=54)
+c1, c2, c3 = st.columns([3, 2, 3])
+with c2:
+    st.image(logo_img, width=96)
 
-with top_mid:
-    st.markdown(
-        """
-        <div style="text-align:center; margin-top: 6px;">
-            <h1 style="margin-bottom: 0.2rem;">Humanio AI</h1>
-            <div style="opacity:0.75; font-size: 1.05rem;">Internal HR Assistant</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+st.markdown(
+    """
+    <div style="text-align:center; margin-top: 6px;">
+        <h1 style="margin-bottom: 0.2rem;">Humanio AI</h1>
+        <div style="opacity:0.78; font-size: 1.05rem;">Internal HR Assistant</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
-with top_right:
+c4, c5, c6 = st.columns([3, 2, 3])
+with c5:
     if st.button("🆕 New chat", use_container_width=True):
-        new_chat()
+        clear_chat()
         st.rerun()
 
+st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
 st.divider()
 
-
 # -----------------------------
-# Knowledge base controls (main page)
-# -----------------------------
-with st.expander("📚 Knowledge base (upload HR docs + rebuild)", expanded=False):
-    st.write("Upload HR documents (PDF/TXT). Then click **Rebuild knowledge base**.")
-    uploaded = st.file_uploader(
-        "Upload files",
-        type=["pdf", "txt"],
-        accept_multiple_files=True,
-        label_visibility="collapsed",
-    )
-
-    col_a, col_b = st.columns([1, 1])
-
-    with col_a:
-        if st.button("⬆️ Save uploaded files", use_container_width=True):
-            if not uploaded:
-                st.warning("No files selected.")
-            else:
-                saved = save_uploaded_files(uploaded)
-                if saved:
-                    st.success(f"Saved: {', '.join(saved)}")
-                else:
-                    st.warning("No valid PDF/TXT files were saved.")
-
-    with col_b:
-        if st.button("🔄 Rebuild knowledge base", use_container_width=True):
-            with st.spinner("Building knowledge base..."):
-                delete_index()
-                vs = build_vectorstore()
-            if vs:
-                st.success("Knowledge base rebuilt ✅")
-            else:
-                st.warning("No documents found in /docs. Upload PDFs/TXT first.")
-
-    st.caption("Tip: If you replace docs, rebuild the knowledge base so answers update.")
-
-
-# -----------------------------
-# Chat UI
+# Chat history
 # -----------------------------
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
+# -----------------------------
+# Chat input + response
+# -----------------------------
 user_q = st.chat_input("Ask an HR question…")
 
 if user_q:
@@ -195,11 +137,13 @@ if user_q:
     with st.chat_message("user"):
         st.markdown(user_q)
 
-    vectorstore = load_vectorstore_if_exists()
+    vectorstore = get_vectorstore()
+
+    # No docs / KB not built
     if not vectorstore:
         answer = (
-            "I don’t have a knowledge base yet.\n\n"
-            "Open **Knowledge base**, upload HR documents (PDF/TXT), then click **Rebuild knowledge base**."
+            "I don’t have any HR documents yet.\n\n"
+            "Upload HR PDFs/TXT files into the **/docs** folder in GitHub, then refresh this page."
         )
         with st.chat_message("assistant"):
             st.markdown(answer)
@@ -223,17 +167,12 @@ QUESTION:
 {user_q}
 
 ANSWER:
-"""
+""".strip()
 
     resp = llm.invoke(prompt)
     answer = resp.content
 
     with st.chat_message("assistant"):
         st.markdown(answer)
-
-        with st.expander("Sources used"):
-            for i, d in enumerate(retrieved, start=1):
-                src = d.metadata.get("source", "unknown")
-                st.write(f"{i}. {src}")
 
     st.session_state.messages.append({"role": "assistant", "content": answer})
