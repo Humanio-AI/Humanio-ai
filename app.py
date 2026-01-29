@@ -133,7 +133,7 @@ with center:
     st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
     # ✅ PERFECTLY CENTERED LOGO
-    st.image(LOGO_PATH, width=160)
+    st.image(LOGO_PATH, width=250)
 
     # ✅ CENTER TITLE
     st.markdown(
