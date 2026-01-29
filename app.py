@@ -23,17 +23,16 @@ st.set_page_config(
 )
 
 # -----------------------------
-# UI STYLING + HIDE TOP BAR/ICONS + BUBBLES (3)
+# UI STYLING (hide top bar/icons, bubbles)
 # -----------------------------
 st.markdown(
     """
     <style>
       header[data-testid="stHeader"] {display:none;}
       div[data-testid="stToolbar"] {display:none;}
-
       .block-container {max-width: 1120px; padding-top: 1.2rem;}
 
-      /* Chat bubble styling (requested) */
+      /* Chat bubble styling */
       div[data-testid="stChatMessage"]{
         background: rgba(255,255,255,0.04);
         border: 1px solid rgba(255,255,255,0.06);
@@ -145,37 +144,34 @@ def get_vectorstore():
     return build_vectorstore_with_backoff()
 
 # -----------------------------
-# HEADER (CENTERED)
+# QUICK ACTIONS (under assistant answers)
 # -----------------------------
-st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-st.image(LOGO_PATH, width=140)
+def render_quick_actions(unique_key_prefix: str):
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        follow = st.button("Ask follow-up", use_container_width=True, key=f"{unique_key_prefix}_follow")
+    with c2:
+        escalate = st.button("Escalate to HR", use_container_width=True, key=f"{unique_key_prefix}_escalate")
+    with c3:
+        view = st.button("View policy", use_container_width=True, key=f"{unique_key_prefix}_view")
 
-st.markdown(
-    """
-    <div style="text-align:center;">
-        <h1 style="margin-bottom:0.2rem;">Flatpay People Team</h1>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
-bl, bm, br = st.columns([3, 2, 3])
-with bm:
-    if st.button("New chat", use_container_width=True):
-        clear_chat()
-        st.rerun()
-
-st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-st.divider()
+    if follow:
+        st.info("Tip: Ask your follow-up question in the box below.")
+    if escalate:
+        st.info("Contact People Ops / raise a ticket via your internal process.")
+    if view:
+        st.info("If your docs include a policy link/source, we can display it here next.")
 
 # -----------------------------
 # ANSWER LOGIC
 # -----------------------------
 def answer_question(user_q: str):
+    # store + show user message
     st.session_state.messages.append({"role": "user", "content": user_q})
     with st.chat_message("user", avatar="👤"):
         st.markdown(user_q)
 
+    # build/load KB
     try:
         with st.spinner("Analyzing..."):
             vectorstore = get_vectorstore()
@@ -183,6 +179,7 @@ def answer_question(user_q: str):
         msg = "OpenAI rate limit hit. Try again shortly."
         with st.chat_message("assistant", avatar=LOGO_PATH):
             st.markdown(msg)
+            render_quick_actions(unique_key_prefix=f"qa_{len(st.session_state.messages)}")
         st.session_state.messages.append({"role": "assistant", "content": msg})
         return
 
@@ -190,6 +187,7 @@ def answer_question(user_q: str):
         msg = "No HR docs found. Upload PDFs/TXT to /docs folder."
         with st.chat_message("assistant", avatar=LOGO_PATH):
             st.markdown(msg)
+            render_quick_actions(unique_key_prefix=f"qa_{len(st.session_state.messages)}")
         st.session_state.messages.append({"role": "assistant", "content": msg})
         return
 
@@ -217,17 +215,16 @@ ANSWER:
 
     with st.chat_message("assistant", avatar=LOGO_PATH):
         st.markdown(answer)
+        render_quick_actions(unique_key_prefix=f"qa_{len(st.session_state.messages)}")
 
     st.session_state.messages.append({"role": "assistant", "content": answer})
 
 # -----------------------------
-# MAIN LAYOUT: LEFT SUGGESTIONS + CHAT
+# SIDEBAR: SUGGESTED QUESTIONS
 # -----------------------------
-left, right = st.columns([1.1, 3.2], gap="large")
-
-with left:
-    st.markdown("### Suggested")
-    st.caption("Click to ask:")
+with st.sidebar:
+    st.markdown("## Suggested questions")
+    st.caption("Click one to ask instantly.")
 
     suggestions = [
         "How do I book annual leave?",
@@ -238,36 +235,75 @@ with left:
         "How do expenses work?",
     ]
 
-    for s in suggestions:
-        if st.button(s, use_container_width=True):
+    for i, s in enumerate(suggestions):
+        if st.button(s, use_container_width=True, key=f"suggest_{i}"):
             answer_question(s)
             st.rerun()
 
-with right:
-    if len(st.session_state.messages) == 0:
-        st.markdown(
-            "<div style='opacity:0.75; margin-top: 2px;'>"
-            "I am here to support with your HR queries."
-            "</div>",
-            unsafe_allow_html=True,
-        )
-        st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+    st.divider()
+    if st.button("🗑️ Clear chat", use_container_width=True):
+        clear_chat()
+        st.rerun()
 
-    for msg in st.session_state.messages:
-        avatar = "👤" if msg["role"] == "user" else LOGO_PATH
-        with st.chat_message(msg["role"], avatar=avatar):
-            st.markdown(msg["content"])
+# -----------------------------
+# HEADER (CENTERED)
+# -----------------------------
+st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+st.image(LOGO_PATH, width=140)
 
-    with st.form(key=f"ask_form_{st.session_state.input_seed}", clear_on_submit=True):
-        q = st.text_input(
-            label="Ask an HR question",
-            placeholder="Ask an HR question…",
-            label_visibility="collapsed",
-        )
-        sent = st.form_submit_button("Send", use_container_width=True)
+st.markdown(
+    """
+    <div style="text-align:center;">
+        <h1 style="margin-bottom:0.2rem;">Flatpay People Team</h1>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
-    if sent:
-        q = (q or "").strip()
-        if q:
-            answer_question(q)
-            st.rerun()
+bl, bm, br = st.columns([3, 2, 3])
+with bm:
+    if st.button("New chat", use_container_width=True):
+        clear_chat()
+        st.rerun()
+
+st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+st.divider()
+
+# -----------------------------
+# EMPTY STATE
+# -----------------------------
+if len(st.session_state.messages) == 0:
+    st.markdown(
+        "<div style='text-align:center; opacity:0.75;'>"
+        "I am here to support with your HR queries"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+
+# -----------------------------
+# CHAT HISTORY (WITH AVATARS + QUICK ACTIONS)
+# -----------------------------
+for idx, msg in enumerate(st.session_state.messages):
+    avatar = "👤" if msg["role"] == "user" else LOGO_PATH
+    with st.chat_message(msg["role"], avatar=avatar):
+        st.markdown(msg["content"])
+        if msg["role"] == "assistant":
+            render_quick_actions(unique_key_prefix=f"hist_{idx}")
+
+# -----------------------------
+# INPUT FORM (AUTO CLEARS)
+# -----------------------------
+with st.form(key=f"ask_form_{st.session_state.input_seed}", clear_on_submit=True):
+    q = st.text_input(
+        label="Ask an HR question",
+        placeholder="Ask an HR question…",
+        label_visibility="collapsed",
+    )
+    sent = st.form_submit_button("Send", use_container_width=True)
+
+if sent:
+    q = (q or "").strip()
+    if q:
+        answer_question(q)
+        st.rerun()
