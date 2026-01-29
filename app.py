@@ -23,14 +23,31 @@ st.set_page_config(
 )
 
 # -----------------------------
-# HIDE STREAMLIT HEADER / ICONS
+# UI STYLING + HIDE TOP BAR/ICONS
 # -----------------------------
 st.markdown(
     """
     <style>
+      /* Hide Streamlit header + top-right toolbar (deploy/share/etc.) */
       header[data-testid="stHeader"] {display:none;}
       div[data-testid="stToolbar"] {display:none;}
-      .block-container { padding-top: 1.5rem; }
+
+      /* Make the app feel like a centered chat app */
+      .block-container {max-width: 980px; padding-top: 1.4rem;}
+
+      /* Chat message spacing + paragraph spacing */
+      div[data-testid="stChatMessage"] {margin-bottom: 0.85rem;}
+      div[data-testid="stChatMessage"] p {margin: 0.25rem 0;}
+
+      /* Round inputs/buttons */
+      .stTextInput > div > div,
+      .stButton > button,
+      .stFormSubmitButton > button {
+        border-radius: 12px !important;
+      }
+
+      /* Slightly tighten default element spacing */
+      div[data-testid="stVerticalBlock"] {gap: 0.75rem;}
     </style>
     """,
     unsafe_allow_html=True,
@@ -124,84 +141,78 @@ def get_vectorstore():
     return build_vectorstore_with_backoff()
 
 # -----------------------------
-# CENTERED LAYOUT
+# HEADER (CENTERED)
 # -----------------------------
-pad_l, center, pad_r = st.columns([2, 5, 2])
+st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
 
-with center:
+st.image(LOGO_PATH, width=150)
 
-    st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
+st.markdown(
+    """
+    <div style="text-align:center;">
+        <h1 style="margin-bottom:0.2rem;">Flatpay People Team</h1>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
-    # ✅ PERFECTLY CENTERED LOGO
-    st.image(LOGO_PATH, width=120)
+# New chat centered, not too wide
+bl, bm, br = st.columns([2.5, 3, 2.5])
+with bm:
+    if st.button("New chat", use_container_width=True):
+        clear_chat()
+        st.rerun()
 
-    # ✅ CENTER TITLE
+st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+st.divider()
+
+if len(st.session_state.messages) == 0:
     st.markdown(
-        """
-        <div style="text-align:center;">
-            <h1>Flatpay People Team</h1>
-        </div>
-        """,
+        "<div style='text-align:center; opacity:0.75;'>"
+        "I am here to support with your HR queries"
+        "</div>",
         unsafe_allow_html=True,
     )
+    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
-    # ✅ CENTER BUTTON (not too wide)
-    bl, bm, br = st.columns([2, 3, 2])
-    with bm:
-        if st.button("New chat", use_container_width=True):
-            clear_chat()
-            st.rerun()
+# -----------------------------
+# CHAT HISTORY
+# -----------------------------
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-    st.divider()
+# -----------------------------
+# ANSWER LOGIC
+# -----------------------------
+def answer_question(user_q: str):
+    st.session_state.messages.append({"role": "user", "content": user_q})
+    with st.chat_message("user"):
+        st.markdown(user_q)
 
-    if len(st.session_state.messages) == 0:
-        st.markdown(
-            "<div style='text-align:center; opacity:0.75;'>"
-            "I am here to support with your HR queries"
-            "</div>",
-            unsafe_allow_html=True,
-        )
+    try:
+        with st.spinner("Analyzing..."):
+            vectorstore = get_vectorstore()
+    except RateLimitError:
+        msg = "OpenAI rate limit hit. Try again shortly."
+        with st.chat_message("assistant"):
+            st.markdown(msg)
+        st.session_state.messages.append({"role": "assistant", "content": msg})
+        return
 
-    # -----------------------------
-    # CHAT HISTORY
-    # -----------------------------
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
+    if not vectorstore:
+        msg = "No HR docs found. Upload PDFs/TXT to /docs folder."
+        with st.chat_message("assistant"):
+            st.markdown(msg)
+        st.session_state.messages.append({"role": "assistant", "content": msg})
+        return
 
-    # -----------------------------
-    # ANSWER LOGIC
-    # -----------------------------
-    def answer_question(user_q: str):
-        st.session_state.messages.append({"role": "user", "content": user_q})
+    retrieved = vectorstore.similarity_search(user_q, k=4)
+    context = "\n\n---\n\n".join([d.page_content for d in retrieved])
 
-        with st.chat_message("user"):
-            st.markdown(user_q)
+    llm = ChatOpenAI(api_key=api_key, model="gpt-4o-mini", temperature=0.4)
 
-        try:
-            with st.spinner("Analyzing..."):
-                vectorstore = get_vectorstore()
-        except RateLimitError:
-            msg = "OpenAI rate limit hit. Try again shortly."
-            with st.chat_message("assistant"):
-                st.markdown(msg)
-            st.session_state.messages.append({"role": "assistant", "content": msg})
-            return
-
-        if not vectorstore:
-            msg = "No HR docs found. Upload PDFs/TXT to /docs folder."
-            with st.chat_message("assistant"):
-                st.markdown(msg)
-            st.session_state.messages.append({"role": "assistant", "content": msg})
-            return
-
-        retrieved = vectorstore.similarity_search(user_q, k=4)
-        context = "\n\n---\n\n".join([d.page_content for d in retrieved])
-
-        llm = ChatOpenAI(api_key=api_key, model="gpt-4o-mini", temperature=0.4)
-
-        prompt = f"""
+    prompt = f"""
 You are a friendly HR assistant for Flatpay.
 Be conversational and helpful.
 Use ONLY the context below. If the answer isn't there, say so.
@@ -215,30 +226,30 @@ QUESTION:
 ANSWER:
 """.strip()
 
-        resp = llm.invoke(prompt)
-        answer = (resp.content or "").strip()
+    resp = llm.invoke(prompt)
+    answer = (resp.content or "").strip()
 
-        with st.chat_message("assistant"):
-            st.markdown(answer)
+    with st.chat_message("assistant"):
+        st.markdown(answer)
 
-        st.session_state.messages.append({"role": "assistant", "content": answer})
+    st.session_state.messages.append({"role": "assistant", "content": answer})
 
-    # -----------------------------
-    # INPUT BOX (NARROWER)
-    # -----------------------------
-    il, im, ir = st.columns([1, 6, 1])
+# -----------------------------
+# INPUT FORM (AUTO CLEARS)
+# -----------------------------
+# Slightly narrower input area than page width
+il, im, ir = st.columns([1, 6, 1])
+with im:
+    with st.form(key=f"ask_form_{st.session_state.input_seed}", clear_on_submit=True):
+        q = st.text_input(
+            label="Ask an HR question",
+            placeholder="Ask an HR question…",
+            label_visibility="collapsed",
+        )
+        sent = st.form_submit_button("Send", use_container_width=True)
 
-    with im:
-        with st.form(key=f"ask_form_{st.session_state.input_seed}", clear_on_submit=True):
-            q = st.text_input(
-                label="Ask an HR question",
-                placeholder="Ask an HR question…",
-                label_visibility="collapsed",
-            )
-            sent = st.form_submit_button("Send", use_container_width=True)
-
-        if sent:
-            q = (q or "").strip()
-            if q:
-                answer_question(q)
-                st.rerun()
+    if sent:
+        q = (q or "").strip()
+        if q:
+            answer_question(q)
+            st.rerun()
