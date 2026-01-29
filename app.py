@@ -12,8 +12,8 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 # -----------------------------
 # CONFIG
 # -----------------------------
-LOGO_PATH = "logo.png"          # must be in repo root
-DOCS_PATH = "docs"              # upload PDFs/TXT here via GitHub
+LOGO_PATH = "logo.png"          # repo root
+DOCS_PATH = "docs"              # upload docs here
 INDEX_PATH = "data/faiss_index" # cache on Streamlit Cloud
 
 st.set_page_config(
@@ -23,7 +23,7 @@ st.set_page_config(
 )
 
 # -----------------------------
-# BASIC CHECKS
+# CHECKS
 # -----------------------------
 if not os.path.exists(LOGO_PATH):
     st.error("logo.png not found in repo root. Upload it as **logo.png**.")
@@ -39,15 +39,12 @@ if not api_key:
 # -----------------------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
-if "draft" not in st.session_state:
-    st.session_state.draft = ""
-if "kb_ready" not in st.session_state:
-    st.session_state.kb_ready = False
+if "input_seed" not in st.session_state:
+    st.session_state.input_seed = 0  # used to reset form widget keys
 
 def clear_chat():
     st.session_state.messages = []
-    st.session_state.draft = ""
-    # keep kb_ready as-is (new chat shouldn't rebuild KB)
+    st.session_state.input_seed += 1  # forces a fresh input widget
 
 # -----------------------------
 # RAG HELPERS
@@ -113,7 +110,7 @@ def get_vectorstore():
     return build_vectorstore_with_backoff()
 
 # -----------------------------
-# HEADER UI (CENTERED)
+# UI HEADER (CENTERED)
 # -----------------------------
 st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
@@ -141,7 +138,7 @@ st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 st.divider()
 
 # -----------------------------
-# FRIENDLY WELCOME (only when empty chat)
+# WELCOME (ONLY WHEN EMPTY)
 # -----------------------------
 if len(st.session_state.messages) == 0:
     st.markdown(
@@ -153,29 +150,29 @@ if len(st.session_state.messages) == 0:
     st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
 # -----------------------------
-# RENDER CHAT HISTORY
+# CHAT HISTORY
 # -----------------------------
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
 # -----------------------------
-# ANSWER LOGIC (conversational)
+# ANSWER LOGIC (CONVERSATIONAL)
 # -----------------------------
-def run_question(user_q: str):
-    # User message
+def answer_question(user_q: str):
+    # show user message
     st.session_state.messages.append({"role": "user", "content": user_q})
     with st.chat_message("user"):
         st.markdown(user_q)
 
-    # Load/build KB
+    # build/load KB
     try:
         with st.spinner("Thinking..."):
             vectorstore = get_vectorstore()
     except RateLimitError:
         msg = (
             "I’m getting rate-limited while building the knowledge base.\n\n"
-            "A few quick fixes:\n"
+            "Quick fixes:\n"
             "- Make sure your OpenAI account has billing/credits enabled\n"
             "- Try again in a minute\n"
             "- Reduce the number/size of documents in /docs\n"
@@ -184,40 +181,29 @@ def run_question(user_q: str):
             st.markdown(msg)
         st.session_state.messages.append({"role": "assistant", "content": msg})
         return
-    except Exception as e:
-        msg = f"Something went wrong while preparing the knowledge base: **{type(e).__name__}** — {e}"
-        with st.chat_message("assistant"):
-            st.markdown(msg)
-        st.session_state.messages.append({"role": "assistant", "content": msg})
-        return
 
-    # No docs yet
     if not vectorstore:
         msg = (
             "I don’t have any HR documents to learn from yet.\n\n"
-            "**To fix:** upload PDFs or .txt files into the **/docs** folder in GitHub, then refresh this page."
+            "Upload PDFs or .txt files into the **/docs** folder in GitHub, then refresh the app."
         )
         with st.chat_message("assistant"):
             st.markdown(msg)
         st.session_state.messages.append({"role": "assistant", "content": msg})
         return
 
-    # Retrieve (stable across versions)
+    # stable retrieval
     retrieved = vectorstore.similarity_search(user_q, k=4)
     context = "\n\n---\n\n".join([d.page_content for d in retrieved])
 
     llm = ChatOpenAI(api_key=api_key, model="gpt-4o-mini", temperature=0.4)
 
-    system_style = """
-You are Humanio AI, a friendly internal HR assistant.
-Be conversational and helpful.
-Use ONLY the provided context to answer.
-If the context doesn't contain the answer, say so clearly and suggest who to contact or what policy to check.
-Keep answers concise but complete. Use bullet points when it helps.
-""".strip()
-
     prompt = f"""
-{system_style}
+You are Humanio AI, a friendly internal HR assistant.
+Be conversational, helpful, and clear.
+Use ONLY the provided context.
+If the context doesn’t contain the answer, say so and suggest who to contact or what to check next.
+Keep answers concise, but include steps/bullets where useful.
 
 CONTEXT:
 {context}
@@ -233,8 +219,6 @@ ANSWER:
         answer = (resp.content or "").strip()
     except RateLimitError:
         answer = "I hit a rate limit while answering. Please try again in a minute."
-    except Exception as e:
-        answer = f"Something went wrong while answering: **{type(e).__name__}** — {e}"
 
     if not answer:
         answer = "I couldn’t generate a response. Please try again."
@@ -245,36 +229,26 @@ ANSWER:
     st.session_state.messages.append({"role": "assistant", "content": answer})
 
 # -----------------------------
-# NARROW INPUT ROW (TEXT CLEARS ON SEND + NEW CHAT)
+# INPUT (FORM = CLEARS ON SUBMIT)
 # -----------------------------
 pad_l, mid, pad_r = st.columns([2.5, 5, 2.5])
 
 with mid:
-    input_l, input_r = st.columns([8, 2])
+    with st.form(key=f"ask_form_{st.session_state.input_seed}", clear_on_submit=True):
+        in_l, in_r = st.columns([8, 2])
+        with in_l:
+            q = st.text_input(
+                label="Ask an HR question",
+                placeholder="Ask an HR question…",
+                label_visibility="collapsed",
+            )
+        with in_r:
+            sent = st.form_submit_button("Send", use_container_width=True)
 
-    with input_l:
-        # key is important: lets us clear it reliably
-        st.text_input(
-            label="Ask an HR question",
-            value=st.session_state.draft,
-            placeholder="Ask an HR question…",
-            label_visibility="collapsed",
-            key="draft_input",
-        )
-
-    with input_r:
-        send = st.button("Send", use_container_width=True)
-
-# Sync the typed value into state
-st.session_state.draft = st.session_state.get("draft_input", "")
-
-if send:
-    q = (st.session_state.draft or "").strip()
-    if not q:
-        st.warning("Type a question first.")
-    else:
-        # Clear input immediately (so it disappears)
-        st.session_state.draft = ""
-        st.session_state["draft_input"] = ""
-        run_question(q)
-        st.rerun()
+    if sent:
+        q = (q or "").strip()
+        if not q:
+            st.warning("Type a question first.")
+        else:
+            answer_question(q)
+            st.rerun()
