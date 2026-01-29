@@ -144,25 +144,6 @@ def get_vectorstore():
     return build_vectorstore_with_backoff()
 
 # -----------------------------
-# QUICK ACTIONS (under assistant answers)
-# -----------------------------
-def render_quick_actions(unique_key_prefix: str):
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        follow = st.button("Ask follow-up", use_container_width=True, key=f"{unique_key_prefix}_follow")
-    with c2:
-        escalate = st.button("Escalate to HR", use_container_width=True, key=f"{unique_key_prefix}_escalate")
-    with c3:
-        view = st.button("View policy", use_container_width=True, key=f"{unique_key_prefix}_view")
-
-    if follow:
-        st.info("Tip: Ask your follow-up question in the box below.")
-    if escalate:
-        st.info("Contact People Ops / raise a ticket via your internal process.")
-    if view:
-        st.info("If your docs include a policy link/source, we can display it here next.")
-
-# -----------------------------
 # ANSWER LOGIC
 # -----------------------------
 def answer_question(user_q: str):
@@ -179,7 +160,6 @@ def answer_question(user_q: str):
         msg = "OpenAI rate limit hit. Try again shortly."
         with st.chat_message("assistant", avatar=LOGO_PATH):
             st.markdown(msg)
-            render_quick_actions(unique_key_prefix=f"qa_{len(st.session_state.messages)}")
         st.session_state.messages.append({"role": "assistant", "content": msg})
         return
 
@@ -187,7 +167,6 @@ def answer_question(user_q: str):
         msg = "No HR docs found. Upload PDFs/TXT to /docs folder."
         with st.chat_message("assistant", avatar=LOGO_PATH):
             st.markdown(msg)
-            render_quick_actions(unique_key_prefix=f"qa_{len(st.session_state.messages)}")
         st.session_state.messages.append({"role": "assistant", "content": msg})
         return
 
@@ -215,7 +194,6 @@ ANSWER:
 
     with st.chat_message("assistant", avatar=LOGO_PATH):
         st.markdown(answer)
-        render_quick_actions(unique_key_prefix=f"qa_{len(st.session_state.messages)}")
 
     st.session_state.messages.append({"role": "assistant", "content": answer})
 
@@ -282,14 +260,12 @@ if len(st.session_state.messages) == 0:
     st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
 # -----------------------------
-# CHAT HISTORY (WITH AVATARS + QUICK ACTIONS)
+# CHAT HISTORY (WITH AVATARS)
 # -----------------------------
-for idx, msg in enumerate(st.session_state.messages):
+for msg in st.session_state.messages:
     avatar = "👤" if msg["role"] == "user" else LOGO_PATH
     with st.chat_message(msg["role"], avatar=avatar):
         st.markdown(msg["content"])
-        if msg["role"] == "assistant":
-            render_quick_actions(unique_key_prefix=f"hist_{idx}")
 
 # -----------------------------
 # INPUT FORM (AUTO CLEARS)
