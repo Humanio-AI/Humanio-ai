@@ -23,6 +23,25 @@ st.set_page_config(
 )
 
 # -----------------------------
+# HIDE TOP RIGHT STREAMLIT ICONS (deploy/share/menu/etc.)
+# -----------------------------
+st.markdown(
+    """
+    <style>
+      /* Hide the Streamlit header (top bar) */
+      header[data-testid="stHeader"] {display: none;}
+
+      /* Hide the top-right toolbar (Deploy/Share/GitHub, etc.) if it renders separately */
+      div[data-testid="stToolbar"] {display: none;}
+
+      /* Optional: remove extra top padding that header usually occupies */
+      .block-container { padding-top: 1.2rem; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# -----------------------------
 # SAFETY CHECKS
 # -----------------------------
 if not os.path.exists(LOGO_PATH):
@@ -115,11 +134,12 @@ def get_vectorstore():
 pad_l, center, pad_r = st.columns([3, 4, 3])
 
 with center:
-
     st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
+    # Center logo
     st.image(LOGO_PATH, width=250)
 
+    # Center title
     st.markdown(
         """
         <div style="text-align:center;">
@@ -156,7 +176,6 @@ with center:
     # ANSWER LOGIC
     # -----------------------------
     def answer_question(user_q: str):
-
         st.session_state.messages.append({"role": "user", "content": user_q})
         with st.chat_message("user"):
             st.markdown(user_q)
