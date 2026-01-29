@@ -23,7 +23,7 @@ st.set_page_config(
 )
 
 # -----------------------------
-# UI STYLING + HIDE TOP BAR/ICONS
+# UI STYLING + HIDE TOP BAR/ICONS + BUBBLES (3)
 # -----------------------------
 st.markdown(
     """
@@ -33,15 +33,24 @@ st.markdown(
 
       .block-container {max-width: 1120px; padding-top: 1.2rem;}
 
-      div[data-testid="stChatMessage"] {margin-bottom: 0.85rem;}
+      /* Chat bubble styling (requested) */
+      div[data-testid="stChatMessage"]{
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.06);
+        padding: 10px 12px;
+        border-radius: 14px;
+        margin-bottom: 0.85rem;
+      }
       div[data-testid="stChatMessage"] p {margin: 0.25rem 0;}
 
+      /* Round inputs/buttons */
       .stTextInput > div > div,
       .stButton > button,
       .stFormSubmitButton > button {
         border-radius: 12px !important;
       }
 
+      /* Slightly tighten vertical spacing */
       div[data-testid="stVerticalBlock"] {gap: 0.75rem;}
     </style>
     """,
@@ -244,13 +253,11 @@ with right:
         )
         st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
-    # Chat history
     for msg in st.session_state.messages:
         avatar = "👤" if msg["role"] == "user" else LOGO_PATH
         with st.chat_message(msg["role"], avatar=avatar):
             st.markdown(msg["content"])
 
-    # Input
     with st.form(key=f"ask_form_{st.session_state.input_seed}", clear_on_submit=True):
         q = st.text_input(
             label="Ask an HR question",
