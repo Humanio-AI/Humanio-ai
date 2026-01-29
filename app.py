@@ -23,18 +23,13 @@ st.set_page_config(
 )
 
 # -----------------------------
-# HIDE TOP RIGHT STREAMLIT ICONS (deploy/share/menu/etc.)
+# HIDE TOP RIGHT STREAMLIT ICONS
 # -----------------------------
 st.markdown(
     """
     <style>
-      /* Hide the Streamlit header (top bar) */
       header[data-testid="stHeader"] {display: none;}
-
-      /* Hide the top-right toolbar (Deploy/Share/GitHub, etc.) if it renders separately */
       div[data-testid="stToolbar"] {display: none;}
-
-      /* Optional: remove extra top padding that header usually occupies */
       .block-container { padding-top: 1.2rem; }
     </style>
     """,
@@ -129,30 +124,35 @@ def get_vectorstore():
     return build_vectorstore_with_backoff()
 
 # -----------------------------
-# CENTERED NARROW LAYOUT
+# PAGE LAYOUT (CENTER EVERYTHING)
 # -----------------------------
-pad_l, center, pad_r = st.columns([3, 4, 3])
+# Wider side padding makes the whole "app column" narrower
+pad_l, center, pad_r = st.columns([4, 2, 4])
 
 with center:
     st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
-    # Center logo
-    st.image(LOGO_PATH, width=250)
+    # Center logo precisely
+    llogo, mlogo, rlogo = st.columns([1, 1, 1])
+    with mlogo:
+        st.image(LOGO_PATH, width=220)
 
     # Center title
     st.markdown(
         """
         <div style="text-align:center;">
             <h1 style="margin-bottom:0.2rem;">Flatpay People Team</h1>
-            <div style="opacity:0.8;"></div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    if st.button("New chat", use_container_width=True):
-        clear_chat()
-        st.rerun()
+    # Narrow "New chat" button (not full width)
+    lbtn, mbtn, rbtn = st.columns([1.5, 1, 1.5])
+    with mbtn:
+        if st.button("New chat", use_container_width=True):
+            clear_chat()
+            st.rerun()
 
     st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
     st.divider()
@@ -164,6 +164,7 @@ with center:
             "</div>",
             unsafe_allow_html=True,
         )
+        st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
     # -----------------------------
     # CHAT HISTORY
@@ -203,10 +204,9 @@ with center:
         llm = ChatOpenAI(api_key=api_key, model="gpt-4o-mini", temperature=0.4)
 
         prompt = f"""
-You are Humanio AI, a friendly HR assistant.
-Be conversational.
-Use ONLY the context.
-If unsure, say so.
+You are a friendly HR assistant for Flatpay.
+Be conversational and helpful.
+Use ONLY the context below. If the answer isn't there, say so.
 
 CONTEXT:
 {context}
@@ -215,7 +215,7 @@ QUESTION:
 {user_q}
 
 ANSWER:
-"""
+""".strip()
 
         resp = llm.invoke(prompt)
         answer = (resp.content or "").strip()
