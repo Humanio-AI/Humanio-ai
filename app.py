@@ -124,20 +124,26 @@ def get_vectorstore():
     return build_vectorstore_with_backoff()
 
 # -----------------------------
-# PAGE LAYOUT (CENTER EVERYTHING)
+# LAYOUT (NOT TOO NARROW)
 # -----------------------------
-# Wider side padding makes the whole "app column" narrower
-pad_l, center, pad_r = st.columns([4, 2, 4])
+# This gives a nice "center column" but not the tiny pill look
+pad_l, center, pad_r = st.columns([2, 6, 2])
 
 with center:
     st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
-    # Center logo precisely
-    llogo, mlogo, rlogo = st.columns([1, 1, 1])
-    with mlogo:
-        st.image(LOGO_PATH, width=220)
+    # Center logo reliably (no extra nested columns so it won't drift)
+    st.markdown(
+        f"""
+        <div style="display:flex; justify-content:center; align-items:center; margin-bottom: 6px;">
+            <img src="app/static/logo" style="display:none;" />
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    # Streamlit image is already centered in its container column
+    st.image(LOGO_PATH, width=140)
 
-    # Center title
     st.markdown(
         """
         <div style="text-align:center;">
@@ -147,8 +153,8 @@ with center:
         unsafe_allow_html=True,
     )
 
-    # Narrow "New chat" button (not full width)
-    lbtn, mbtn, rbtn = st.columns([1.5, 1, 1.5])
+    # "New chat" button: narrower but not tiny
+    lbtn, mbtn, rbtn = st.columns([2, 3, 2])
     with mbtn:
         if st.button("New chat", use_container_width=True):
             clear_chat()
