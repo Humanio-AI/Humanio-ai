@@ -30,7 +30,8 @@ st.markdown(
     <style>
       header[data-testid="stHeader"] {display:none;}
       div[data-testid="stToolbar"] {display:none;}
-      .block-container {max-width: 980px; padding-top: 1.4rem;}
+
+      .block-container {max-width: 1120px; padding-top: 1.2rem;}
 
       div[data-testid="stChatMessage"] {margin-bottom: 0.85rem;}
       div[data-testid="stChatMessage"] p {margin: 0.25rem 0;}
@@ -137,9 +138,8 @@ def get_vectorstore():
 # -----------------------------
 # HEADER (CENTERED)
 # -----------------------------
-st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
-
-st.image(LOGO_PATH, width=150)
+st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+st.image(LOGO_PATH, width=140)
 
 st.markdown(
     """
@@ -150,7 +150,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-bl, bm, br = st.columns([2.5, 3, 2.5])
+bl, bm, br = st.columns([3, 2, 3])
 with bm:
     if st.button("New chat", use_container_width=True):
         clear_chat()
@@ -164,8 +164,6 @@ st.divider()
 # -----------------------------
 def answer_question(user_q: str):
     st.session_state.messages.append({"role": "user", "content": user_q})
-
-    # user avatar
     with st.chat_message("user", avatar="👤"):
         st.markdown(user_q)
 
@@ -214,15 +212,13 @@ ANSWER:
     st.session_state.messages.append({"role": "assistant", "content": answer})
 
 # -----------------------------
-# EMPTY STATE + SUGGESTED QUESTIONS (1 + 3)
+# MAIN LAYOUT: LEFT SUGGESTIONS + CHAT
 # -----------------------------
-if len(st.session_state.messages) == 0:
-    st.markdown(
-        "<div style='text-align:center; opacity:0.75; margin-bottom: 10px;'>"
-        "I am here to support with your HR queries"
-        "</div>",
-        unsafe_allow_html=True,
-    )
+left, right = st.columns([1.1, 3.2], gap="large")
+
+with left:
+    st.markdown("### Suggested")
+    st.caption("Click to ask:")
 
     suggestions = [
         "How do I book annual leave?",
@@ -233,30 +229,28 @@ if len(st.session_state.messages) == 0:
         "How do expenses work?",
     ]
 
-    # 3 columns of suggestion buttons
-    c1, c2, c3 = st.columns(3)
-    for i, s in enumerate(suggestions):
-        col = [c1, c2, c3][i % 3]
-        with col:
-            if st.button(s, use_container_width=True):
-                answer_question(s)
-                st.rerun()
+    for s in suggestions:
+        if st.button(s, use_container_width=True):
+            answer_question(s)
+            st.rerun()
 
-    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+with right:
+    if len(st.session_state.messages) == 0:
+        st.markdown(
+            "<div style='opacity:0.75; margin-top: 2px;'>"
+            "I am here to support with your HR queries."
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
-# -----------------------------
-# CHAT HISTORY (WITH AVATARS)
-# -----------------------------
-for msg in st.session_state.messages:
-    avatar = "👤" if msg["role"] == "user" else LOGO_PATH
-    with st.chat_message(msg["role"], avatar=avatar):
-        st.markdown(msg["content"])
+    # Chat history
+    for msg in st.session_state.messages:
+        avatar = "👤" if msg["role"] == "user" else LOGO_PATH
+        with st.chat_message(msg["role"], avatar=avatar):
+            st.markdown(msg["content"])
 
-# -----------------------------
-# INPUT FORM (AUTO CLEARS)
-# -----------------------------
-il, im, ir = st.columns([1, 6, 1])
-with im:
+    # Input
     with st.form(key=f"ask_form_{st.session_state.input_seed}", clear_on_submit=True):
         q = st.text_input(
             label="Ask an HR question",
