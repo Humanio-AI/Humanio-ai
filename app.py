@@ -17,7 +17,7 @@ DOCS_PATH = "docs"
 INDEX_PATH = "data/faiss_index"
 
 st.set_page_config(
-    page_title="Flatpay",
+    page_title="Damira Dental Studios",
     page_icon=LOGO_PATH if os.path.exists(LOGO_PATH) else "🤝",
     layout="wide",
 )
@@ -232,7 +232,7 @@ st.image(LOGO_PATH, width=140)
 st.markdown(
     """
     <div style="text-align:center;">
-        <h1 style="margin-bottom:0.2rem;">Flatpay People Team</h1>
+        <h1 style="margin-bottom:0.2rem;">Damira Dental HR Team</h1>
     </div>
     """,
     unsafe_allow_html=True,
