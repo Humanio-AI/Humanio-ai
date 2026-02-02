@@ -17,7 +17,7 @@ DOCS_PATH = "docs"
 INDEX_PATH = "data/faiss_index"
 
 st.set_page_config(
-    page_title="Damira Dental Studios",
+    page_title="Iris Software Group",
     page_icon=LOGO_PATH if os.path.exists(LOGO_PATH) else "🤝",
     layout="wide",
 )
@@ -176,7 +176,7 @@ def answer_question(user_q: str):
     llm = ChatOpenAI(api_key=api_key, model="gpt-4o-mini", temperature=0.4)
 
     prompt = f"""
-You are a friendly HR assistant for Flatpay.
+You are a friendly HR assistant for Iris Software.
 Be conversational and helpful.
 Use ONLY the context below. If the answer isn't there, say so.
 
@@ -232,7 +232,7 @@ st.image(LOGO_PATH, width=140)
 st.markdown(
     """
     <div style="text-align:center;">
-        <h1 style="margin-bottom:0.2rem;">Damira Dental HR Team</h1>
+        <h1 style="margin-bottom:0.2rem;">Iris Software HR Team</h1>
     </div>
     """,
     unsafe_allow_html=True,
