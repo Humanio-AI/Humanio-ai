@@ -205,12 +205,12 @@ with st.sidebar:
     st.caption("Click one to ask instantly.")
 
     suggestions = [
-        "How do I book annual leave?",
-        "What is the sickness policy?",
-        "Where can I find my benefits information?",
-        "How do I update my personal details?",
-        "What is the probation process?",
-        "How do expenses work?",
+        "How do I submit expenses on SAP Concur?",
+        "Who do I contact for payroll issues?",
+        "What is the approval limit for managers?",
+        "How do I access my budget for this year?",
+        "When is payroll cut-off?",
+        "How do I correct a rejected expense claim?",
     ]
 
     for i, s in enumerate(suggestions):
