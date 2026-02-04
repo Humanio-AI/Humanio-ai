@@ -17,7 +17,7 @@ DOCS_PATH = "docs"
 INDEX_PATH = "data/faiss_index"
 
 st.set_page_config(
-    page_title="Iris Software Group",
+    page_title="Humanio AI",
     page_icon=LOGO_PATH if os.path.exists(LOGO_PATH) else "🤝",
     layout="wide",
 )
@@ -176,7 +176,7 @@ def answer_question(user_q: str):
     llm = ChatOpenAI(api_key=api_key, model="gpt-4o-mini", temperature=0.4)
 
     prompt = f"""
-You are a friendly HR assistant for Iris Software.
+You are a friendly HR assistant for Humanio AI.
 Be conversational and helpful.
 Use ONLY the context below. If the answer isn't there, say so.
 
@@ -232,7 +232,7 @@ st.image(LOGO_PATH, width=140)
 st.markdown(
     """
     <div style="text-align:center;">
-        <h1 style="margin-bottom:0.2rem;">Iris Software HR Team</h1>
+        <h1 style="margin-bottom:0.2rem;"></h1>
     </div>
     """,
     unsafe_allow_html=True,
@@ -253,7 +253,7 @@ st.divider()
 if len(st.session_state.messages) == 0:
     st.markdown(
         "<div style='text-align:center; opacity:0.75;'>"
-        "I am here to support with your HR queries"
+        ""
         "</div>",
         unsafe_allow_html=True,
     )
@@ -272,8 +272,8 @@ for msg in st.session_state.messages:
 # -----------------------------
 with st.form(key=f"ask_form_{st.session_state.input_seed}", clear_on_submit=True):
     q = st.text_input(
-        label="Ask an HR question",
-        placeholder="Ask an HR question…",
+        label="Input your query...",
+        placeholder="Input your query…",
         label_visibility="collapsed",
     )
     sent = st.form_submit_button("Send", use_container_width=True)
